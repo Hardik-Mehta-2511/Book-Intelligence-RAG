@@ -160,7 +160,12 @@ def build_prompt(query: str, docs: pd.DataFrame) -> str:
     )
 
 
-def answer_query(query: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> str:
+def answer_query(
+    query: str,
+    top_k: int = 5,
+    filters: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+) -> str:
     """Answer a user query by combining retrieved docs and the LLM.
 
     Behavior:
@@ -168,7 +173,16 @@ def answer_query(query: str, top_k: int = 5, filters: Optional[Dict[str, Any]] =
     - If no catalog context is available, the LLM will still answer from
       general knowledge but will clearly note the answer is not drawn
       from the catalog and may be unverified.
+
+    This keeps compatibility with both the current filters-aware call path and
+    older callers that do not pass a filters dict explicitly.
     """
+    if filters is None and "filters" in kwargs:
+        filters = kwargs.pop("filters")
+    if kwargs:
+        unexpected = ", ".join(sorted(kwargs.keys()))
+        raise TypeError(f"answer_query() got unexpected keyword argument(s): {unexpected}")
+
     openai_api_key = get_openai_api_key()
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
