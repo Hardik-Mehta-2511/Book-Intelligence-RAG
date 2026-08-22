@@ -260,7 +260,7 @@ def main():
                             if RETRIEVER_IMPORT_ERROR:
                                 st.code(RETRIEVER_IMPORT_ERROR, language="text")
 
-                # show retrieval + AI answer
+                # show retrieval results when available
                 if len(results):
                     st.markdown("### Top matching books")
                     # show cards with covers if available
@@ -303,18 +303,18 @@ def main():
                                 st.session_state.selected_book = r.to_dict()
                             st.markdown('</div>', unsafe_allow_html=True)
 
-                    if OPENAI_AVAILABLE and get_openai_api_key():
-                        try:
-                            answer = answer_query(query_to_execute, top_k=5)
-                            answer_holder.markdown(f"<div class='ai-answer'><h4>AI Recommendation</h4><div>{answer}</div></div>", unsafe_allow_html=True)
-                        except Exception as exc:
-                            st.error(f"OpenAI generation failed: {exc}")
+                if OPENAI_AVAILABLE and get_openai_api_key():
+                    try:
+                        answer = answer_query(query_to_execute, top_k=5)
+                        answer_holder.markdown(f"<div class='ai-answer'><h4>AI Recommendation</h4><div>{answer}</div></div>", unsafe_allow_html=True)
+                    except Exception as exc:
+                        st.error(f"OpenAI generation failed: {exc}")
+                else:
+                    st.info("OpenAI is not configured. Set OPENAI_API_KEY in your local .env or in Streamlit secrets to enable AI answers.")
+                    if OPENAI_IMPORT_ERROR:
+                        st.code(OPENAI_IMPORT_ERROR, language="text")
                     else:
-                        st.info("OpenAI is not configured. Set OPENAI_API_KEY in your local .env or in Streamlit secrets to enable AI answers.")
-                        if OPENAI_IMPORT_ERROR:
-                            st.code(OPENAI_IMPORT_ERROR, language="text")
-                        else:
-                            st.write("Hint: create a `.env` file with `OPENAI_API_KEY=sk-...` or add the key in Streamlit Cloud secrets.")
+                        st.write("Hint: create a `.env` file with `OPENAI_API_KEY=sk-...` or add the key in Streamlit Cloud secrets.")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
