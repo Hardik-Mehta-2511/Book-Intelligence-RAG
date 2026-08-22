@@ -216,9 +216,6 @@ def main():
             "Which books are good for young readers about bravery?",
         ]
         chosen = st.selectbox("Try an example", ["-- pick an example --"] + examples, key="ai_example_select")
-        if chosen and chosen != "-- pick an example --":
-            # populate the existing input's value logically for generation
-            query_top = chosen
 
         # Initialize search history in session state
         if "search_history" not in st.session_state:
@@ -234,83 +231,90 @@ def main():
         except Exception:
             pass
 
+        typed_query = (query_top or "").strip()
+        selected_example = chosen if chosen and chosen != "-- pick an example --" else ""
+        query_to_execute = typed_query if typed_query else selected_example
+
         # Placeholder for results and retrieval — reuse existing logic
-        if (ask_top and query_top and query_top.strip()):
-            with st.spinner("Retrieving relevant books and generating answer…"):
-                results = []
-                if EMBEDDINGS_FILE.exists() and search is not None:
-                    try:
-                        results = search(query_top, top_k=5, filters=filters)
-                        # push into search history (most recent first)
-                        st.session_state.search_history.insert(0, query_top)
-                        # keep history bounded
-                        st.session_state.search_history = st.session_state.search_history[:20]
-                    except Exception as exc:
-                        st.error(f"Retriever failed: {exc}")
-                        results = []
-                else:
-                    if not EMBEDDINGS_FILE.exists():
-                        st.warning("Embeddings not found. Run `python rag/embeddings.py` first.")
-                    else:
-                        st.warning("Retriever not available (import error). Check `rag/retriever.py`.")
-                        if RETRIEVER_IMPORT_ERROR:
-                            st.code(RETRIEVER_IMPORT_ERROR, language="text")
-
-            # show retrieval + AI answer
-            if len(results):
-                st.markdown("### Top matching books")
-                # show cards with covers if available
-                img_col = None
-                for candidate in ("image_url", "thumbnail", "cover_url"):
-                    if candidate in results.columns:
-                        img_col = candidate
-                        break
-
-                cols = st.columns(min(5, len(results)))
-                for i, (_, r) in enumerate(results.iterrows()):
-                    with cols[i]:
-                        st.markdown('<div class="book-card">', unsafe_allow_html=True)
-                        if img_col and pd.notna(r.get(img_col, None)) and r.get(img_col):
-                            try:
-                                st.image(r.get(img_col), use_column_width=True)
-                            except Exception:
-                                pass
-                        st.markdown(f"<div class=\"book-content\">\n<div class=\"book-title\">{r.get('title','')}</div>\n<div class=\"book-category\">{r.get('genre','')}</div>\n<div class=\"book-price\">{format_price(r.get('price') or r.get('price_clean',''))}</div>\n</div>", unsafe_allow_html=True)
-                        # simple local explanation
-                        def explain_match(q, row):
-                            q_words = set([w.lower() for w in re.findall(r"\w+", q) if len(w) > 3])
-                            desc = str(row.get('description','') or '')
-                            desc_words = set([w.lower() for w in re.findall(r"\w+", desc) if len(w) > 3])
-                            overlap = q_words & desc_words
-                            reasons = []
-                            if overlap:
-                                reasons.append(f"Contains keywords: {', '.join(list(overlap)[:6])}.")
-                            if row.get('genre'):
-                                reasons.append(f"Genre: {row.get('genre')}")
-                            reasons.append(f"Semantic match score: {row.get('score',0):.2f}")
-                            return ' '.join(reasons)
-
-                        with st.expander("Why this book?"):
-                            st.write(explain_match(query_top, r))
-
-                        # link to detail view
-                        book_key = f"book_{i}"
-                        if st.button("View details", key=book_key):
-                            st.session_state.selected_book = r.to_dict()
-                        st.markdown('</div>', unsafe_allow_html=True)
-
-            if OPENAI_AVAILABLE and get_openai_api_key():
-                try:
-                    answer = answer_query(query_top, top_k=5)
-                    answer_holder.markdown(f"<div class='ai-answer'><h4>AI Recommendation</h4><div>{answer}</div></div>", unsafe_allow_html=True)
-                except Exception as exc:
-                    st.error(f"OpenAI generation failed: {exc}")
+        if ask_top:
+            if not query_to_execute:
+                st.warning("Please enter a query or select an example before generating an answer.")
             else:
-                st.info("OpenAI is not configured. Set OPENAI_API_KEY in your local .env or in Streamlit secrets to enable AI answers.")
-                if OPENAI_IMPORT_ERROR:
-                    st.code(OPENAI_IMPORT_ERROR, language="text")
-                else:
-                    st.write("Hint: create a `.env` file with `OPENAI_API_KEY=sk-...` or add the key in Streamlit Cloud secrets.")
+                with st.spinner("Retrieving relevant books and generating answer…"):
+                    results = []
+                    if EMBEDDINGS_FILE.exists() and search is not None:
+                        try:
+                            results = search(query_to_execute, top_k=5, filters=filters)
+                            # push into search history (most recent first)
+                            st.session_state.search_history.insert(0, query_to_execute)
+                            # keep history bounded
+                            st.session_state.search_history = st.session_state.search_history[:20]
+                        except Exception as exc:
+                            st.error(f"Retriever failed: {exc}")
+                            results = []
+                    else:
+                        if not EMBEDDINGS_FILE.exists():
+                            st.warning("Embeddings not found. Run `python rag/embeddings.py` first.")
+                        else:
+                            st.warning("Retriever not available (import error). Check `rag/retriever.py`.")
+                            if RETRIEVER_IMPORT_ERROR:
+                                st.code(RETRIEVER_IMPORT_ERROR, language="text")
+
+                # show retrieval + AI answer
+                if len(results):
+                    st.markdown("### Top matching books")
+                    # show cards with covers if available
+                    img_col = None
+                    for candidate in ("image_url", "thumbnail", "cover_url"):
+                        if candidate in results.columns:
+                            img_col = candidate
+                            break
+
+                    cols = st.columns(min(5, len(results)))
+                    for i, (_, r) in enumerate(results.iterrows()):
+                        with cols[i]:
+                            st.markdown('<div class="book-card">', unsafe_allow_html=True)
+                            if img_col and pd.notna(r.get(img_col, None)) and r.get(img_col):
+                                try:
+                                    st.image(r.get(img_col), use_column_width=True)
+                                except Exception:
+                                    pass
+                            st.markdown(f"<div class=\"book-content\">\n<div class=\"book-title\">{r.get('title','')}</div>\n<div class=\"book-category\">{r.get('genre','')}</div>\n<div class=\"book-price\">{format_price(r.get('price') or r.get('price_clean',''))}</div>\n</div>", unsafe_allow_html=True)
+                            # simple local explanation
+                            def explain_match(q, row):
+                                q_words = set([w.lower() for w in re.findall(r"\w+", q) if len(w) > 3])
+                                desc = str(row.get('description','') or '')
+                                desc_words = set([w.lower() for w in re.findall(r"\w+", desc) if len(w) > 3])
+                                overlap = q_words & desc_words
+                                reasons = []
+                                if overlap:
+                                    reasons.append(f"Contains keywords: {', '.join(list(overlap)[:6])}.")
+                                if row.get('genre'):
+                                    reasons.append(f"Genre: {row.get('genre')}")
+                                reasons.append(f"Semantic match score: {row.get('score',0):.2f}")
+                                return ' '.join(reasons)
+
+                            with st.expander("Why this book?"):
+                                st.write(explain_match(query_to_execute, r))
+
+                            # link to detail view
+                            book_key = f"book_{i}"
+                            if st.button("View details", key=book_key):
+                                st.session_state.selected_book = r.to_dict()
+                            st.markdown('</div>', unsafe_allow_html=True)
+
+                    if OPENAI_AVAILABLE and get_openai_api_key():
+                        try:
+                            answer = answer_query(query_to_execute, top_k=5)
+                            answer_holder.markdown(f"<div class='ai-answer'><h4>AI Recommendation</h4><div>{answer}</div></div>", unsafe_allow_html=True)
+                        except Exception as exc:
+                            st.error(f"OpenAI generation failed: {exc}")
+                    else:
+                        st.info("OpenAI is not configured. Set OPENAI_API_KEY in your local .env or in Streamlit secrets to enable AI answers.")
+                        if OPENAI_IMPORT_ERROR:
+                            st.code(OPENAI_IMPORT_ERROR, language="text")
+                        else:
+                            st.write("Hint: create a `.env` file with `OPENAI_API_KEY=sk-...` or add the key in Streamlit Cloud secrets.")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
