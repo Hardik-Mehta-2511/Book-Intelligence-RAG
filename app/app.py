@@ -305,7 +305,7 @@ def main():
 
                 if OPENAI_AVAILABLE and get_openai_api_key():
                     try:
-                        answer = answer_query(query_to_execute, top_k=5)
+                        answer = answer_query(query_to_execute, top_k=5, filters=filters)
                         if not isinstance(answer, str) or not answer.strip():
                             st.warning("AI generation returned no content. Please try a different query.")
                         else:

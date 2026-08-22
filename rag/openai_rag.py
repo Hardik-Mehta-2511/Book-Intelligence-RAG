@@ -11,7 +11,7 @@ import re
 from typing import Optional, Dict, Any
 
 # Local retriever
-from rag.retriever import search as retriever_search
+from rag.retriever import search as retriever_search, extract_price_filters, apply_price_filters
 
 EMBEDDINGS_FILE = Path("data/processed/books_embeddings.npz")
 META_FILE = Path("data/processed/books_embeddings_meta.csv")
@@ -136,15 +136,11 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.dot(a_norm, b_norm)
 
 
-def retrieve_docs(query: str, top_k: int = 5):
-    embeddings = load_embeddings()
-    meta = load_meta()
-    query_vec = embed_query(query)
-    scores = cosine_similarity(embeddings, query_vec)
-    best_idx = np.argsort(scores)[::-1][:top_k]
-    results = meta.iloc[best_idx].copy()
-    results["score"] = scores[best_idx]
-    return results
+def retrieve_docs(query: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None):
+    query_filters = extract_price_filters(query)
+    combined_filters = dict(filters or {})
+    combined_filters.update(query_filters)
+    return retriever_search(query, top_k=top_k, filters=combined_filters)
 
 
 def build_prompt(query: str, docs: pd.DataFrame) -> str:
@@ -164,7 +160,7 @@ def build_prompt(query: str, docs: pd.DataFrame) -> str:
     )
 
 
-def answer_query(query: str, top_k: int = 5) -> str:
+def answer_query(query: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None) -> str:
     """Answer a user query by combining retrieved docs and the LLM.
 
     Behavior:
@@ -178,13 +174,16 @@ def answer_query(query: str, top_k: int = 5) -> str:
         raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
 
     # semantic retrieval
-    docs = retrieve_docs(query, top_k=top_k)
+    docs = retrieve_docs(query, top_k=top_k, filters=filters)
 
     # prepend title-fallback matches if present
     try:
         meta = load_meta()
         title_matches = find_title_matches(query, meta)
         if not title_matches.empty:
+            price_filters = extract_price_filters(query)
+            if price_filters:
+                title_matches = apply_price_filters(title_matches, price_filters)
             title_matches = title_matches.copy()
             title_matches["score"] = 1.0
             combined = pd.concat([title_matches, docs], ignore_index=True)
