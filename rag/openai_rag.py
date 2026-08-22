@@ -153,13 +153,16 @@ def build_prompt(query: str, docs: pd.DataFrame) -> str:
     )
 
 
-def answer_query(query: str, docs: pd.DataFrame, top_k: int = 5) -> str:
-    """Answer a query using the documents already retrieved and filtered by the app."""
+def answer_query(query: str, top_k: int = 5, docs: Optional[pd.DataFrame] = None) -> str:
+    """Answer a query using pre-filtered docs or one deterministic fallback retrieval."""
     openai_api_key = get_openai_api_key()
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
 
-    docs = docs.head(top_k).copy()
+    if docs is None:
+        docs = retriever_search(query, top_k=top_k)
+    else:
+        docs = docs.head(top_k).copy()
 
     # Build a clear prompt that asks the model to prefer catalog context but fall
     # back to general knowledge if needed (and to declare when it does so).
