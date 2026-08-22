@@ -5,7 +5,10 @@ __pycache__/
 
 # Data
 data/raw/
-data/processed/
+data/processed/*
+!data/processed/books_enriched.csv
+!data/processed/books_embeddings.npz
+!data/processed/books_embeddings_meta.csv
 
 # Environment
 .env
