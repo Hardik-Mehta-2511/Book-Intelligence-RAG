@@ -10,8 +10,8 @@ import time
 import re
 from typing import Optional, Dict, Any
 
-# Local retriever
-from rag.retriever import search as retriever_search, extract_price_filters, apply_price_filters
+# Local retriever used by the legacy rag_answer helper.
+from rag.retriever import search as retriever_search
 
 EMBEDDINGS_FILE = Path("data/processed/books_embeddings.npz")
 META_FILE = Path("data/processed/books_embeddings_meta.csv")
@@ -136,13 +136,6 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return np.dot(a_norm, b_norm)
 
 
-def retrieve_docs(query: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = None):
-    query_filters = extract_price_filters(query)
-    combined_filters = dict(filters or {})
-    combined_filters.update(query_filters)
-    return retriever_search(query, top_k=top_k, filters=combined_filters)
-
-
 def build_prompt(query: str, docs: pd.DataFrame) -> str:
     context_items = []
     for _, row in docs.iterrows():
@@ -160,57 +153,13 @@ def build_prompt(query: str, docs: pd.DataFrame) -> str:
     )
 
 
-def answer_query(
-    query: str,
-    top_k: int = 5,
-    filters: Optional[Dict[str, Any]] = None,
-    docs: Optional[pd.DataFrame] = None,
-    **kwargs: Any,
-) -> str:
-    """Answer a user query by combining retrieved docs and the LLM.
-
-    Behavior:
-    - Prefer the already-filtered docs passed by the app when available.
-    - If no docs are passed, retrieve them via the same deterministic retriever
-      used elsewhere in the app so explicit price filters are still enforced.
-    - Prepend title-fallback rows to retrieved docs when applicable.
-    - If no catalog context is available, the LLM will still answer from
-      general knowledge but will clearly note the answer is not drawn
-      from the catalog and may be unverified.
-    """
-    if filters is None and "filters" in kwargs:
-        filters = kwargs.pop("filters")
-    if docs is None and "docs" in kwargs:
-        docs = kwargs.pop("docs")
-    if kwargs:
-        unexpected = ", ".join(sorted(kwargs.keys()))
-        raise TypeError(f"answer_query() got unexpected keyword argument(s): {unexpected}")
-
+def answer_query(query: str, docs: pd.DataFrame, top_k: int = 5) -> str:
+    """Answer a query using the documents already retrieved and filtered by the app."""
     openai_api_key = get_openai_api_key()
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
 
-    # Prefer the already-filtered results retrieved earlier in the app. If not
-    # provided, do a single retrieval pass that applies the same filters.
-    if docs is None:
-        docs = retrieve_docs(query, top_k=top_k, filters=filters)
-
-    # prepend title-fallback matches if present
-    try:
-        meta = load_meta()
-        title_matches = find_title_matches(query, meta)
-        if not title_matches.empty:
-            price_filters = extract_price_filters(query)
-            if price_filters:
-                title_matches = apply_price_filters(title_matches, price_filters)
-            title_matches = title_matches.copy()
-            title_matches["score"] = 1.0
-            combined = pd.concat([title_matches, docs], ignore_index=True)
-            if "url" in combined.columns:
-                combined = combined.drop_duplicates(subset=["url"]).reset_index(drop=True)
-            docs = combined.iloc[:top_k].copy()
-    except Exception:
-        pass
+    docs = docs.head(top_k).copy()
 
     # Build a clear prompt that asks the model to prefer catalog context but fall
     # back to general knowledge if needed (and to declare when it does so).
