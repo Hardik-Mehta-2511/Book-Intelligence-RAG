@@ -307,8 +307,8 @@ def main():
                     try:
                         answer = answer_query(
                             query_to_execute,
-                            results if isinstance(results, pd.DataFrame) else pd.DataFrame(),
-                            5,
+                            top_k=5,
+                            docs=results if isinstance(results, pd.DataFrame) else pd.DataFrame(),
                         )
                         if not isinstance(answer, str) or not answer.strip():
                             st.warning("AI generation returned no content. Please try a different query.")
