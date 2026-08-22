@@ -164,21 +164,24 @@ def answer_query(
     query: str,
     top_k: int = 5,
     filters: Optional[Dict[str, Any]] = None,
+    docs: Optional[pd.DataFrame] = None,
     **kwargs: Any,
 ) -> str:
     """Answer a user query by combining retrieved docs and the LLM.
 
     Behavior:
+    - Prefer the already-filtered docs passed by the app when available.
+    - If no docs are passed, retrieve them via the same deterministic retriever
+      used elsewhere in the app so explicit price filters are still enforced.
     - Prepend title-fallback rows to retrieved docs when applicable.
     - If no catalog context is available, the LLM will still answer from
       general knowledge but will clearly note the answer is not drawn
       from the catalog and may be unverified.
-
-    This keeps compatibility with both the current filters-aware call path and
-    older callers that do not pass a filters dict explicitly.
     """
     if filters is None and "filters" in kwargs:
         filters = kwargs.pop("filters")
+    if docs is None and "docs" in kwargs:
+        docs = kwargs.pop("docs")
     if kwargs:
         unexpected = ", ".join(sorted(kwargs.keys()))
         raise TypeError(f"answer_query() got unexpected keyword argument(s): {unexpected}")
@@ -187,8 +190,10 @@ def answer_query(
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
 
-    # semantic retrieval
-    docs = retrieve_docs(query, top_k=top_k, filters=filters)
+    # Prefer the already-filtered results retrieved earlier in the app. If not
+    # provided, do a single retrieval pass that applies the same filters.
+    if docs is None:
+        docs = retrieve_docs(query, top_k=top_k, filters=filters)
 
     # prepend title-fallback matches if present
     try:
