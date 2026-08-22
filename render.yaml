@@ -1,0 +1,10 @@
+# Render service configuration
+services:
+  - type: web
+    name: ai-book-intelligence
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run app/app.py --server.port $PORT"
+    disk: 1024
+    region: oregon

@@ -1,0 +1,9 @@
+beautifulsoup4
+pandas
+requests
+streamlit
+sentence_transformers
+numpy
+scikit-learn
+openai
+python-dotenv

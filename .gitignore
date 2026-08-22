@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Data
+data/raw/
+data/processed/
+
+# Environment
+.env
