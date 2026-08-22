@@ -319,8 +319,8 @@ def main():
     st.sidebar.markdown("### Recent searches")
     history = st.session_state.get("search_history", [])
     if history:
-        for h in history[:8]:
-            if st.sidebar.button(h, key=f"hist_{h}"):
+        for i, h in enumerate(history[:8]):
+            if st.sidebar.button(h, key=f"hist_{i}"):
                 # set top input when clicked
                 st.experimental_set_query_params()  # no-op placeholder to keep session consistent
                 st.session_state.ai_top_input = h
