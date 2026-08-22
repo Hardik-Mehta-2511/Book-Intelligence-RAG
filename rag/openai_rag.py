@@ -18,9 +18,60 @@ META_FILE = Path("data/processed/books_embeddings_meta.csv")
 MODEL_NAME = "all-MiniLM-L6-v2"
 # Cache SBERT model to avoid reloading on every call
 _SBERT = None
+
+
+def get_openai_api_key() -> Optional[str]:
+    """Support local .env usage and Streamlit Community Cloud secrets."""
+    value = os.getenv("OPENAI_API_KEY")
+    if value:
+        return value
+
+    try:
+        import streamlit as st
+
+        for key in ("OPENAI_API_KEY", "openai_api_key"):
+            value = st.secrets.get(key)
+            if value:
+                return str(value)
+
+        openai_section = st.secrets.get("openai", {})
+        if isinstance(openai_section, dict):
+            for key in ("api_key", "API_KEY"):
+                value = openai_section.get(key)
+                if value:
+                    return str(value)
+    except Exception:
+        pass
+
+    return None
+
+
+def get_openai_model() -> str:
+    value = os.getenv("OPENAI_MODEL")
+    if value:
+        return value
+
+    try:
+        import streamlit as st
+
+        value = st.secrets.get("OPENAI_MODEL")
+        if value:
+            return str(value)
+
+        openai_section = st.secrets.get("openai", {})
+        if isinstance(openai_section, dict):
+            value = openai_section.get("model")
+            if value:
+                return str(value)
+    except Exception:
+        pass
+
+    return "gpt-5-mini"
+
+
 # OpenAI model can be set via environment variable `OPENAI_MODEL`.
 # Default to `gpt-5-mini` to prefer GPT-5 family models when available.
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+OPENAI_MODEL = get_openai_model()
 
 
 def load_embeddings():
@@ -122,9 +173,9 @@ def answer_query(query: str, top_k: int = 5) -> str:
       general knowledge but will clearly note the answer is not drawn
       from the catalog and may be unverified.
     """
-    openai_api_key = os.getenv("OPENAI_API_KEY")
+    openai_api_key = get_openai_api_key()
     if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment or .env file.")
+        raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
 
     # semantic retrieval
     docs = retrieve_docs(query, top_k=top_k)
@@ -164,7 +215,7 @@ def answer_query(query: str, top_k: int = 5) -> str:
     user_msg = f"Context:\n{context}\n\nUser query: {query}\n\nAnswer:" if context else f"User query: {query}\n\nAnswer:" 
 
     client = OpenAI(api_key=openai_api_key)
-    model_name = os.getenv("OPENAI_MODEL", OPENAI_MODEL)
+    model_name = get_openai_model() or OPENAI_MODEL
     resp = client.chat.completions.create(
         model=model_name,
         messages=[
@@ -182,9 +233,9 @@ def enrich_description(description: str, max_retries: int = 3) -> dict:
 
     Returns a dict with keys: summary, themes, genre, audience, keywords
     """
-    openai_api_key = os.getenv("OPENAI_API_KEY")
+    openai_api_key = get_openai_api_key()
     if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY is not configured.")
+        raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
 
     system_msg = (
         "You are an assistant that extracts structured metadata from a book description. "
@@ -199,7 +250,7 @@ def enrich_description(description: str, max_retries: int = 3) -> dict:
     for attempt in range(1, max_retries + 1):
         try:
             client = OpenAI(api_key=openai_api_key)
-            model_name = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+            model_name = get_openai_model() or "gpt-3.5-turbo"
             resp = client.chat.completions.create(
                 model=model_name,
                 messages=[
@@ -279,9 +330,9 @@ def rag_answer(query: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = N
 
     Returns the assistant's text reply.
     """
-    openai_api_key = os.getenv("OPENAI_API_KEY")
+    openai_api_key = get_openai_api_key()
     if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY is not configured.")
+        raise ValueError("OPENAI_API_KEY is not configured. Set it in your environment, .env file, or Streamlit secrets.")
 
     docs = retriever_search(query, top_k=top_k, filters=filters or {}, min_score=min_score)
 
@@ -343,7 +394,7 @@ def rag_answer(query: str, top_k: int = 5, filters: Optional[Dict[str, Any]] = N
     )
 
     client = OpenAI(api_key=openai_api_key)
-    model_name = os.getenv("OPENAI_MODEL", OPENAI_MODEL)
+    model_name = get_openai_model() or OPENAI_MODEL
     resp = client.chat.completions.create(
         model=model_name,
         messages=[

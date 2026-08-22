@@ -9,6 +9,24 @@ import streamlit as st
 
 load_dotenv()
 
+
+def get_openai_api_key():
+    value = os.getenv("OPENAI_API_KEY")
+    if value:
+        return value
+
+    try:
+        secret = st.secrets.get("OPENAI_API_KEY")
+        if secret:
+            return str(secret)
+        secret = st.secrets.get("openai", {}).get("api_key")
+        if secret:
+            return str(secret)
+    except Exception:
+        pass
+
+    return None
+
 DATA_FILE = "data/processed/books_enriched.csv"
 EMBEDDINGS_FILE = Path("data/processed/books_embeddings.npz")
 
@@ -276,18 +294,18 @@ def main():
                             st.session_state.selected_book = r.to_dict()
                         st.markdown('</div>', unsafe_allow_html=True)
 
-            if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+            if OPENAI_AVAILABLE and get_openai_api_key():
                 try:
                     answer = answer_query(query_top, top_k=5)
                     answer_holder.markdown(f"<div class='ai-answer'><h4>AI Recommendation</h4><div>{answer}</div></div>", unsafe_allow_html=True)
                 except Exception as exc:
                     st.error(f"OpenAI generation failed: {exc}")
             else:
-                st.info("OpenAI is not configured. Set OPENAI_API_KEY to enable AI answers.")
+                st.info("OpenAI is not configured. Set OPENAI_API_KEY in your local .env or in Streamlit secrets to enable AI answers.")
                 if OPENAI_IMPORT_ERROR:
                     st.code(OPENAI_IMPORT_ERROR, language="text")
                 else:
-                    st.write("Hint: create a `.env` file with `OPENAI_API_KEY=sk-...` or export the variable in your shell.")
+                    st.write("Hint: create a `.env` file with `OPENAI_API_KEY=sk-...` or add the key in Streamlit Cloud secrets.")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
