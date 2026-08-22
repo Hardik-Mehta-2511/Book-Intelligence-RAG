@@ -306,8 +306,8 @@ def main():
                 if OPENAI_AVAILABLE and get_openai_api_key():
                     try:
                         answer = answer_query(
-                            query_to_execute,
-                            results if isinstance(results, pd.DataFrame) else pd.DataFrame(),
+                            query=query_to_execute,
+                            docs=results if isinstance(results, pd.DataFrame) else pd.DataFrame(),
                             top_k=5,
                         )
                         if not isinstance(answer, str) or not answer.strip():
