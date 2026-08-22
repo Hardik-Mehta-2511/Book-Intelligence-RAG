@@ -66,11 +66,11 @@ def get_openai_model() -> str:
     except Exception:
         pass
 
-    return "gpt-5-mini"
+    return "gpt-4o-mini"
 
 
 # OpenAI model can be set via environment variable `OPENAI_MODEL`.
-# Default to `gpt-5-mini` to prefer GPT-5 family models when available.
+# Default to a stable, fully supported chat-completions model for the app.
 OPENAI_MODEL = get_openai_model()
 
 
@@ -225,7 +225,15 @@ def answer_query(query: str, top_k: int = 5) -> str:
         max_completion_tokens=450,
     )
 
-    return resp.choices[0].message.content.strip()
+    content = resp.choices[0].message.content
+    if content is None:
+        raise ValueError("AI generation returned no content.")
+
+    content = str(content).strip()
+    if not content:
+        raise ValueError("AI generation returned no content. Please try a different query.")
+
+    return content
 
 
 def enrich_description(description: str, max_retries: int = 3) -> dict:
@@ -260,7 +268,13 @@ def enrich_description(description: str, max_retries: int = 3) -> dict:
                 max_completion_tokens=400,
             )
 
-            content = resp.choices[0].message.content.strip()
+            content = resp.choices[0].message.content
+            if content is None:
+                raise ValueError("AI generation returned no content.")
+
+            content = str(content).strip()
+            if not content:
+                raise ValueError("AI generation returned no content.")
 
             # Parse JSON — some models may wrap output in backticks or code blocks
             try:

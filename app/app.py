@@ -306,7 +306,10 @@ def main():
                 if OPENAI_AVAILABLE and get_openai_api_key():
                     try:
                         answer = answer_query(query_to_execute, top_k=5)
-                        answer_holder.markdown(f"<div class='ai-answer'><h4>AI Recommendation</h4><div>{answer}</div></div>", unsafe_allow_html=True)
+                        if not isinstance(answer, str) or not answer.strip():
+                            st.warning("AI generation returned no content. Please try a different query.")
+                        else:
+                            answer_holder.markdown(f"<div class='ai-answer'><h4>AI Recommendation</h4><div>{answer}</div></div>", unsafe_allow_html=True)
                     except Exception as exc:
                         st.error(f"OpenAI generation failed: {exc}")
                 else:
